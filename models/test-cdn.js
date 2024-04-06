@@ -1,1 +1,1 @@
-console.log("this is js file");
+document.write("this is a test-cdn file")
