@@ -1,10 +1,318 @@
-<!DOCTYPE html>
 <html>
+
 <head>
-    <title>Test CDN</title>
+  <meta charset="UTF-8" />
+
+  <link rel="stylesheet" type="text/css" href="index.css" />
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-GLhlTQ8iRABdZLl6O3oVMWSktQOp6b7In1Zl3/Jr59b6EGGoI1aFkw7cmDA6j6gD" crossorigin="anonymous" />
+  <title>Screen capture api Demo</title>
 </head>
+
 <body>
-    <p>This is an HTML paragraph.</p>
-    <script src="https://cdn.jsdelivr.net/gh/asif771/face-recognition-models/models/test-cdn.js"></script>
+  <div class="container">
+    <h3>
+      Record your Screen and downlaod it
+    </h3>
+    </br>
+    <div class="row">
+      <h2>Preview</h2>
+      <div class="col-md-8 col-sm-12" id="previewContainer">
+        <video id="preview" width="700" height="400" autoplay muted></video>
+        <canvas id="previewCanvas"></canvas>
+      </div>  
+      <div class="col-md-4 col-sm-12">
+        <video id="recording" width="400" height="400" controls></video>
+        <a id="downloadButton" class="btn btn-success mt-2"> Download </a>
+      </div>
+      <div class="col-md-8 col-sm-12">
+        <h3 id="qualityMessage">Video Quality: </h3>
+        <button id="startButton" class="btn btn-primary mt-3 ">Start Face Recognization</button>
+        <button id="stopButton" class="btn btn-danger mt-3">Stop Recording</button>
+        <div>
+          <pre id="log"></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- <script src="https://cdn.jsdelivr.net/gh/asif771/Recognized_face_and_record/models/tiny_face_detector_model-shard1"></script> -->
+  <!-- <script src="https://cdn.jsdelivr.net/gh/asif771/Recognized_face_and_record/models/tiny_face_detector_model-shard2"></script> -->
+  <script src="https://cdn.jsdelivr.net/gh/asif771/Recognized_face_and_record/models/tiny_face_detector_model-weights_manifest.json"></script>
+
+  <!-- <script src="https://cdn.jsdelivr.net/gh/asif771/Recognized_face_and_record/models/ssd_mobilenetv1_model-shard1"></script> -->
+  <!-- <script src="https://cdn.jsdelivr.net/gh/asif771/Recognized_face_and_record/models/ssd_mobilenetv1_model-shard2"></script> -->
+  <script src="https://cdn.jsdelivr.net/gh/asif771/Recognized_face_and_record/models/ssd_mobilenetv1_model-weights_manifest.json"></script>
+  <script src="https://cdn.jsdelivr.net/gh/asif771/Recognized_face_and_record/models/face_landmark_68_model-weights_manifest.json"></script>
+  <script src="https://cdn.jsdelivr.net/gh/asif771/Recognized_face_and_record/models/face_recognition_model-weights_manifest.json"></script>
+  <script src="https://cdn.jsdelivr.net/gh/asif771/Recognized_face_and_record/models/face_expression_model-weights_manifest.json"></script>
+
+
+  <script src="https://cdn.jsdelivr.net/gh/asif771/Recognized_face_and_record/face-api.min.js"></script>
+  <script>
+    let preview = document.getElementById("preview");
+let recording = document.getElementById("recording");
+let startButton = document.getElementById("startButton");
+let stopButton = document.getElementById("stopButton");
+let downloadButton = document.getElementById("downloadButton");
+let logElement = document.getElementById("log");
+let loginButton = document.getElementById("login");
+
+let recorder;
+const previewContainer = document.getElementById("previewContainer");
+const canvas = document.getElementById("previewCanvas");
+previewContainer.appendChild(canvas);
+
+function setCanvasSize() {
+  canvas.width = previewContainer.offsetWidth;
+  canvas.height = previewContainer.offsetHeight;
+}
+setCanvasSize();
+window.addEventListener("resize", setCanvasSize);
+function log(msg) {
+  logElement.innerHTML = msg + "\n";
+}
+function startRecording(stream) {
+  recorder = new MediaRecorder(stream);
+  let data = [];
+  recorder.ondataavailable = (event) => data.push(event.data);
+  recorder.start();
+
+  log('"Recording..."');
+
+  let stopped = new Promise((resolve, reject) => {
+    recorder.onstop = resolve;
+    recorder.onerror = (event) => reject(event.name);
+  });
+
+  return Promise.all([stopped, recorder]).then(() => data);
+}
+
+function stop(stream) {
+  if (recorder.state == "recording") {
+    recorder.stop();
+  }
+  stream.getTracks().forEach((track) => track.stop());
+  preview.srcObject = null;
+}
+
+function startSharing() {
+  navigator.mediaDevices.getDisplayMedia({
+    video: true,
+    audio: false,
+  })
+    .then((stream) => {
+      preview.captureStream = preview.captureStream || preview.mozCaptureStream;
+      preview.srcObject = stream;
+      return new Promise((resolve) => (preview.onplaying = resolve));
+
+    }).then(() => {
+      startWebcam();
+    }).then(() => startRecording(preview.captureStream()))
+    .then((recordedChunks) => {
+      let recordedBlob = new Blob(recordedChunks, { type: "video/webm" });
+      recording.src = URL.createObjectURL(recordedBlob);
+      downloadButton.href = recording.src;
+      downloadButton.download = "RecordedVideo.webm";
+      log(
+        "Successfully recorded " +
+        recordedBlob.size +
+        " bytes of " +
+        recordedBlob.type +
+        " media."
+      );
+    })
+    .catch(log);
+}
+
+Promise.all([
+  faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/gh/asif771/Recognized_face_and_record/models/'),
+  faceapi.nets.ssdMobilenetv1.loadFromUri("https://cdn.jsdelivr.net/gh/asif771/Recognized_face_and_record/models/"),
+  faceapi.nets.faceLandmark68Net.loadFromUri("https://cdn.jsdelivr.net/gh/asif771/Recognized_face_and_record/models/"),
+  faceapi.nets.faceRecognitionNet.loadFromUri('https://cdn.jsdelivr.net/gh/asif771/Recognized_face_and_record/models/'),
+  faceapi.nets.faceExpressionNet.loadFromUri('https://cdn.jsdelivr.net/gh/asif771/Recognized_face_and_record/models/')
+]);
+
+
+async function startWebcam() {
+  const constraints = {
+    video: {
+      width: { ideal: 1280 },
+      height: { ideal: 720 },
+      frameRate: { ideal: 30 },
+      facingMode: "user"
+    },
+    audio: false
+  };
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    preview.srcObject = stream;
+    setInterval(async () => {
+      const brightnessMessage = await detectLiveLightAndUpdateQuality(canvas.width, canvas.height);
+      displayQualityMessage(brightnessMessage);
+    }, 5000);
+    const qualityMessage = checkVideoQuality();
+    displayQualityMessage(qualityMessage);
+    setInterval(() => {
+      const qualityMessage = checkVideoQuality();
+      displayQualityMessage(qualityMessage);
+    }, 5000);
+    startFaceRecognition();
+  } catch (error) {
+    console.error('Error accessing webcam:', error);
+  }
+}
+
+
+function getLabeledFaceDescriptions() {
+  const labels = ["asif", "tanvir", "waqas"];
+  return Promise.all(
+    labels.map(async (label) => {
+      const descriptions = [];
+      for (let i = 1; i <= 2; i++) {
+        const img = await faceapi.fetchImage(`.labels/${label}/${i}.jpg`);
+        const detections = await faceapi
+          .detectSingleFace(img)
+          .withFaceLandmarks()
+          .withFaceDescriptor();
+        descriptions.push(detections.descriptor);
+      }
+      return new faceapi.LabeledFaceDescriptors(label, descriptions);
+    })
+  );
+}
+
+
+
+
+stopButton.addEventListener(
+  "click",
+  function () {
+    stop(preview.srcObject);
+  });
+
+
+
+
+
+startButton.addEventListener("click", async function () {
+  await startSharing();
+});
+
+let recognitionInterval;
+let wasStoppedDueToQuality = false;
+async function startFaceRecognition() {
+
+  const labeledFaceDescriptors = await getLabeledFaceDescriptions();
+  const faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors);
+
+  const displaySize = { width: preview.width, height: preview.height };
+  faceapi.matchDimensions(canvas, displaySize);
+
+  recognitionInterval = setInterval(async () => {
+    const qualityMessage = checkVideoQuality();
+    const brightnessMessage = await detectLiveLightAndUpdateQuality(canvas.width, canvas.height);
+
+    if (qualityMessage.includes('not optimal') || brightnessMessage === 'dark') {
+      clearInterval(recognitionInterval);
+      wasStoppedDueToQuality = true;
+      const resumeRecognition = confirm("Face recognition stopped: " + (brightnessMessage === 'dark' ? "Insufficient brightness" : "Resolution not optimal") + ". Do you want to resume?");
+      if (resumeRecognition) {
+        startFaceRecognition();
+      } else {
+        alert("Face recognition stopped. Please ensure optimal conditions and restart.");
+      }
+      return;
+    }
+    const detections = await faceapi.detectAllFaces(preview, new faceapi.TinyFaceDetectorOptions())
+      .withFaceLandmarks()
+      .withFaceDescriptors();
+    const resizedDetections = faceapi.resizeResults(detections, displaySize);
+
+    canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
+
+    faceapi.draw.drawDetections(canvas, resizedDetections)
+    faceapi.draw.drawFaceLandmarks(canvas, resizedDetections)
+
+    const results = resizedDetections.map((d) => {
+      return faceMatcher.findBestMatch(d.descriptor);
+    });
+    results.forEach((result, i) => {
+      const box = resizedDetections[i].detection.box;
+      const drawBox = new faceapi.draw.DrawBox(box, {
+        label: result,
+      });
+      drawBox.draw(canvas);
+    });
+  }, 100);
+}
+
+function checkVideoQuality() {
+  if (preview.srcObject) {
+    const videoTrack = preview.srcObject.getVideoTracks()[0];
+    const settings = videoTrack.getSettings();
+
+    const resolution = `${settings.width}x${settings.height}`;
+    const frameRate = settings.frameRate;
+    let qualityMessage = '';
+    const resolutionThreshold = '1280x720';
+    const frameRateThreshold = 30;
+
+    if (resolution >= resolutionThreshold) {
+      qualityMessage += 'Resolution is optimal. ';
+    } else {
+      qualityMessage += 'Resolution is not optimal. ';
+    }
+
+    if (frameRate >= frameRateThreshold) {
+      qualityMessage += 'Frame rate is optimal.';
+    } else {
+      qualityMessage += 'Frame rate is not optimal.';
+    }
+    return qualityMessage;
+  }
+  else{
+    console.log('preview is empty')
+  }
+}
+
+function displayQualityMessage(message) {
+  const qualityMessageElement = document.getElementById('qualityMessage');
+  if (qualityMessageElement) {
+    qualityMessageElement.textContent = message;
+  } else {
+    console.error('Quality message element not found.');
+  }
+}
+async function detectLiveLightAndUpdateQuality(width, height) {
+  const context = canvas.getContext("2d");
+  context.drawImage(preview, 0, 0, width, height);
+
+  const imageData = context.getImageData(0, 0, width, height);
+  const data = imageData.data;
+
+  let totalBrightness = 0;
+
+  for (let i = 0; i < data.length; i += 4) {
+    const red = data[i];
+    const green = data[i + 1];
+    const blue = data[i + 2];
+    const brightness = 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+    totalBrightness += brightness;
+  }
+
+  const averageBrightness = totalBrightness / (width * height);
+  console.log(averageBrightness, "average brightness");
+
+  const darknessThreshold = 100; 
+
+  if (averageBrightness < darknessThreshold) {
+    return 'dark';
+  } else {
+    return 'bright';
+  }
+}
+  </script>
 </body>
 </html>
